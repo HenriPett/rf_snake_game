@@ -43,6 +43,9 @@ class SnekEnv(gym.Env):
                                             shape=(5+SNAKE_LEN_GOAL,), dtype=np.float32)
 
     def step(self, action):
+        if len(self.prev_actions) == 1000:
+            self.done = True
+
         self.prev_actions.append(action)
         cv2.imshow('a', self.img)
         cv2.waitKey(1)
@@ -75,11 +78,13 @@ class SnekEnv(gym.Env):
         elif button_direction == 3:
             self.snake_head[1] -= 10
 
+        apple_reward = 0
         # Increase Snake length on eating apple
         if self.snake_head == self.apple_position:
             self.apple_position, self.score = collision_with_apple(
                 self.apple_position, self.score)
             self.snake_position.insert(0, list(self.snake_head))
+            apple_reward = 50
 
         else:
             self.snake_position.insert(0, list(self.snake_head))
@@ -94,7 +99,14 @@ class SnekEnv(gym.Env):
             cv2.imshow('a', self.img)
             self.done = True
 
-        self.total_reward = len(self.snake_position) - 3  # default length is 3
+        euclidean_dist_to_apple = np.linalg.norm(
+            np.array(self.snake_head) - np.array(self.apple_position))
+
+        self.total_reward = (
+            (250 - euclidean_dist_to_apple) + apple_reward)/100
+
+        print(self.total_reward)
+
         self.reward = self.total_reward - self.prev_reward
         self.prev_reward = self.total_reward
 
@@ -113,9 +125,9 @@ class SnekEnv(gym.Env):
 
         observation = [head_x, head_y, apple_delta_x,
                        apple_delta_y, snake_length] + list(self.prev_actions)
-        observation = np.array(observation, dtype=np.float32)
+        observation = np.array(observation)
 
-        return observation, self.reward, self.done, info
+        return observation, self.total_reward, self.done, info
 
     def reset(self):
         self.img = np.zeros((500, 500, 3), dtype='uint8')
@@ -136,8 +148,8 @@ class SnekEnv(gym.Env):
         head_y = self.snake_head[1]
 
         snake_length = len(self.snake_position)
-        apple_delta_x = self.apple_position[0] - head_x
-        apple_delta_y = self.apple_position[1] - head_y
+        apple_delta_x = -1*(self.apple_position[0] - head_x)
+        apple_delta_y = -1*(self.apple_position[1] - head_y)
 
         # however long we aspire the snake to be
         self.prev_actions = deque(maxlen=SNAKE_LEN_GOAL)
@@ -147,6 +159,6 @@ class SnekEnv(gym.Env):
         # create observation:
         observation = [head_x, head_y, apple_delta_x,
                        apple_delta_y, snake_length] + list(self.prev_actions)
-        observation = np.array(observation, dtype=np.float32)
+        observation = np.array(observation)
 
         return observation
